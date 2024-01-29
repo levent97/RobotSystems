@@ -1,8 +1,24 @@
-from robot_hat import Pin, ADC, PWM, Servo, fileDB
-from robot_hat import Grayscale_Module, Ultrasonic, utils
 import time
 import os
+import math
+import logging
+import atexit
 
+logging_format = "%(asctime)s: %(message)s"
+logging.basicConfig(format=logging_format, level=logging.INFO,datefmt="%H:%M:%S")
+logging.getLogger().setLevel(logging.DEBUG)
+
+try:
+    from robot_hat import Pin, ADC, PWM, Servo, fileDB
+    from robot_hat import Grayscale_Module, Ultrasonic
+    from robot_hat.utils import reset_mcu, run_command
+except ImportError:
+    from sim_robot_hat import Pin, ADC, PWM, Servo, fileDB
+    from sim_robot_hat import Grayscale_Module, Ultrasonic
+    from sim_robot_hat import reset_mcu, run_command
+
+reset_mcu()
+time.sleep(0.2)
 
 def constrain(x, min_val, max_val):
     '''
@@ -41,8 +57,8 @@ class Picarx(object):
                 ):
 
         # reset robot_hat
-        utils.reset_mcu()
-        time.sleep(0.2)
+        #utils.reset_mcu()
+        #time.sleep(0.2)
 
         # --------- config_flie ---------
         self.config_flie = fileDB(config, 777, os.getlogin())
@@ -91,6 +107,8 @@ class Picarx(object):
         # --------- ultrasonic init ---------
         tring, echo= ultrasonic_pins
         self.ultrasonic = Ultrasonic(Pin(tring), Pin(echo))
+
+        atexit.register(self.stop)
         
     def set_motor_speed(self, motor, speed):
         ''' set motor speed
@@ -107,8 +125,8 @@ class Picarx(object):
         elif speed < 0:
             direction = -1 * self.cali_dir_value[motor]
         speed = abs(speed)
-        if speed != 0:
-            speed = int(speed /2 ) + 50
+       # if speed != 0:
+       #     speed = int(speed /2 ) + 50
         speed = speed - self.cali_speed_value[motor]
         if direction < 0:
             self.motor_direction_pins[motor].high()
@@ -116,6 +134,8 @@ class Picarx(object):
         else:
             self.motor_direction_pins[motor].low()
             self.motor_speed_pins[motor].pulse_width_percent(speed)
+
+        logging.debug(f"motor_speed: {speed}")
 
     def motor_speed_calibration(self, value):
         self.cali_speed_value = value
@@ -150,6 +170,7 @@ class Picarx(object):
         self.dir_current_angle = constrain(value, self.DIR_MIN, self.DIR_MAX)
         angle_value  = self.dir_current_angle + self.dir_cali_val
         self.dir_servo_pin.angle(angle_value)
+        logging.debug(f"dir_servo_angle: {self.dir_angle_value}")   
 
     def cam_pan_servo_calibrate(self, value):
         self.cam_pan_cali_val = value
@@ -173,13 +194,35 @@ class Picarx(object):
         self.set_motor_speed(1, speed)
         self.set_motor_speed(2, speed)
 
+    def get_ackermann_percent(self):
+        
+        len = 0.1
+        wid = 0.12
+
+        delta_i = math.atan((len*math.sin(self.dir_angle_value))/(len*math.cos(self.dir_angle_value) - 0.5*wid*math.sin(self.dir_angle_value)))
+        delta_o = math.atan((len*math.sin(self.dir_angle_value))/(len*math.cos(self.dir_angle_value) + 0.5*wid*math.sin(self.dir_angle_value)))
+        
+        if (delta_i == 0) or (delta_o == 0):
+            perc = 1
+        else:
+            abs_delta_i = abs(delta_i)
+            abs_delta_o = abs(delta_o)
+
+            if abs_delta_o > abs_delta_i:
+                perc = abs_delta_i/abs_delta_o
+            else:
+                perc = abs_delta_o/abs_delta_i
+        
+        return perc
+
     def backward(self, speed):
         current_angle = self.dir_current_angle
         if current_angle != 0:
             abs_current_angle = abs(current_angle)
             if abs_current_angle > self.DIR_MAX:
                 abs_current_angle = self.DIR_MAX
-            power_scale = (100 - abs_current_angle) / 100.0 
+            # power_scale = (100 - abs_current_angle) / 100.0
+            power_scale = self.get_ackermann_percent
             if (current_angle / abs_current_angle) > 0:
                 self.set_motor_speed(1, -1*speed)
                 self.set_motor_speed(2, speed * power_scale)
@@ -196,7 +239,8 @@ class Picarx(object):
             abs_current_angle = abs(current_angle)
             if abs_current_angle > self.DIR_MAX:
                 abs_current_angle = self.DIR_MAX
-            power_scale = (100 - abs_current_angle) / 100.0
+            # power_scale = (100 - abs_current_angle) / 100.0
+            power_scale = self.get_ackermann_percent()
             if (current_angle / abs_current_angle) > 0:
                 self.set_motor_speed(1, 1*speed * power_scale)
                 self.set_motor_speed(2, -speed) 
@@ -248,6 +292,31 @@ class Picarx(object):
             self.config_flie.set("cliff_reference", self.cliff_reference)
         else:
             raise ValueError("grayscale reference must be a 1*3 list")
+    
+    def move(self,v,len,ang):
+        self.set_dir_servo_angle(ang)
+        self.forward(v,ang)
+        time.sleep(len)
+        self.stop()
+
+    def p_park(self,v,len, dir=-1):
+        self.set_dir_servo_angle(dir*40)
+        self.backward(v,dir*40)
+        time.sleep(0.5*len)
+        self.set_dir_servo_angle(-dir*40)
+        self.backward(v,-direction*40)
+        time.sleep(0.5*len)
+
+    def k_turn(self,v,len, dir=-1):
+        self.set_dir_servo_angle(dir*40)
+        self.forward(v,-dir*40)
+        time.sleep(0.5*len)
+        self.set_dir_servo_angle(-dir*40)
+        self.backward(v,dir*40)
+        time.sleep(0.5*len)
+        self.set_dir_servo_angle(dir*40)
+        self.forward(v,-dir*40)
+        time.sleep(0.5*len)  
 
 if __name__ == "__main__":
     px = Picarx()
