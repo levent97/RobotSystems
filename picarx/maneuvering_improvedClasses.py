@@ -31,7 +31,7 @@ def p_park(self,v,len, dir=-1):
     self.backward(v,dir*40)
     time.sleep(0.5*len)
     self.set_dir_servo_angle(-dir*40)
-    self.backward(v,-direction*40)
+    self.backward(v,-dir*40)
     time.sleep(0.5*len)
 
 def k_turn(self,v,len, dir=-1):
