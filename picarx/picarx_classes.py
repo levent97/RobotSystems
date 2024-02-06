@@ -7,13 +7,18 @@ import cv2
 import concurrent.futures
 from threading import Lock
 
-try :
-    from robot_hat import __reset_mcu__
-    from robot_hat import *
-    __reset_mcu__()
-    time.sleep(0.01)
-except ImportError :
-    from sim_robot_hat import *
+# try :
+#     from robot_hat import __reset_mcu__
+#     from robot_hat import *
+#     __reset_mcu__()
+#     time.sleep(0.01)
+# except ImportError :
+#     from sim_robot_hat import *
+
+from robot_hat import __reset_mcu__
+from robot_hat import *
+__reset_mcu__()
+time.sleep(0.01)
 
 
 import logging

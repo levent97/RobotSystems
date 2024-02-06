@@ -2,13 +2,19 @@
 
 from math import tan, pi
 
-try :
-    from robot_hat import __reset_mcu__
-    __reset_mcu__()
-    time.sleep(0.01)
-    from robot_hat import *
-except ImportError:
-    from sim_robot_hat import *
+# try :
+#     from robot_hat import __reset_mcu__
+#     __reset_mcu__()
+#     time.sleep(0.01)
+#     from robot_hat import *
+# except ImportError:
+#     from sim_robot_hat import *
+
+
+from robot_hat import __reset_mcu__
+__reset_mcu__()
+time.sleep(0.01)
+from robot_hat import *
 
 from picarx_classes import Motors, Sensors, Interpreters, Controllers, CVSteering, DataBus
 import time
