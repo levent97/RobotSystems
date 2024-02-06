@@ -10,7 +10,7 @@ try :
 except ImportError:
     from sim_robot_hat import *
 
-from picarx_classes import Motors, Sensors, Interpreters, Controllers, CVSteering, simultaneity
+from picarx_classes import Motors, Sensors, Interpreters, Controllers, CVSteering, DataBus
 import time
 import cv2
 
