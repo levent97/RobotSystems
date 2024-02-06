@@ -162,9 +162,8 @@ class Motors:
     
     def manual_motor_shutdown(self):
         self.stop()
-        
-    import atexit
-    atexit.register(self.stop)
+        import atexit
+        atexit.register(self.stop)
 
 
 class Sensors:
