@@ -18,6 +18,7 @@ if __name__ == "__main__":
         px = Picarx()
         print(manual)
         px.forward(50)
+        px.set_cam_tilt_angle(-20)
         while True:
             key = readchar.readkey()
             key = key.lower()
